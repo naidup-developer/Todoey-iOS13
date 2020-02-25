@@ -14,14 +14,23 @@ class TodoListViewController: UITableViewController {
     var itemArray = [Item]()
     @IBOutlet var uiTableView : UITableView!
     
-    var defaults = UserDefaults.standard
-    let dataFilePath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?.appendingPathComponent("Items.plist")
     var context = (UIApplication.shared.delegate as! AppDelegate).persistentContainer.viewContext
+    
+    var selectedCategory : Category?{
+        didSet{
+            loadItems()
+        }
+    }
     
     override func viewDidLoad() {
         super.viewDidLoad()
         
+        
+        
+        print(FileManager.default.urls(for: .documentDirectory, in: .userDomainMask))
         print(itemArray.count)
+        
+         
         loadItems()
         
     }
@@ -43,19 +52,14 @@ class TodoListViewController: UITableViewController {
         
         return cell
     }
-
+    
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         
         
         itemArray[indexPath.row].isChecked = !itemArray[indexPath.row].isChecked
         
+        //deleteItem(index: indexPath.row)
         
-        
-        if tableView.cellForRow(at: indexPath)?.accessoryType == .checkmark{
-             tableView.cellForRow(at: indexPath)?.accessoryType = .none
-        }else{
-             tableView.cellForRow(at: indexPath)?.accessoryType = .checkmark
-        }
         saveItems()
         tableView.deselectRow(at: indexPath, animated: true)
     }
@@ -74,9 +78,10 @@ class TodoListViewController: UITableViewController {
             let newItem = Item(context: self.context)
             newItem.name = textField.text!
             newItem.isChecked = false
+            newItem.parentCategory = self.selectedCategory
             self.itemArray.append(newItem)
             self.saveItems()
-           
+            
         }
         
         alert.addTextField { (alertTextField) in
@@ -84,7 +89,7 @@ class TodoListViewController: UITableViewController {
             textField = alertTextField
             
         }
-            
+        
         
         
         alert.addAction(action)
@@ -92,25 +97,65 @@ class TodoListViewController: UITableViewController {
     }
     
     func saveItems()  {
-         
-                   do{
-                    try context.save()
-                   }catch{
-                       print("Error  saving context : \(error)")
-                   }
-                   
-                   self.tableView.reloadData()
+        
+        do{
+            try context.save()
+        }catch{
+            print("Error  saving context : \(error)")
+        }
+        
+        self.tableView.reloadData()
     }
     
-    func loadItems()  {
+    func loadItems(with request : NSFetchRequest<Item> = Item.fetchRequest(), predicate : NSPredicate? = nil)  {
         
-      
-            do{
-               
-            }catch{
-                print(error)
-            }
+        let categoryPredicate =  NSPredicate(format: "parentCategory.name MATCHES %@", selectedCategory!.name!)
+        
+        if let additionalPredicate = predicate {
+            request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [categoryPredicate, additionalPredicate])
+        }else{
+            request.predicate = categoryPredicate
         }
+       
+        do{
+            itemArray = try context.fetch(request)
+        }catch{
+            print("error Loading : \(error)")
+        }
+        tableView.reloadData()
+        
+    }
+    func deleteItem(index : Int)  {
+        context.delete(itemArray[index])
+        itemArray.remove(at: index)
+    }
+}
+
+
+//MARK: - Search Bar Methods
+extension TodoListViewController : UISearchBarDelegate{
+    
+    func searchBarSearchButtonClicked(_ searchBar: UISearchBar) {
+        let request : NSFetchRequest<Item> = Item.fetchRequest()
+        
+        let predicate = NSPredicate(format: "name CONTAINS[cd] %@", searchBar.text!)
+        request.sortDescriptors = [NSSortDescriptor(key: "name", ascending: true)]
+        
+        loadItems(with: request, predicate: predicate)
+        
+        tableView.reloadData()
+    }
+    
+    func searchBar(_ searchBar: UISearchBar, textDidChange searchText: String) {
+        if searchBar.text?.count == 0{
+            loadItems()
+            DispatchQueue.main.async {
+                searchBar.resignFirstResponder()
+            }
+            
+        }
+    }
+    
 }
 
 
