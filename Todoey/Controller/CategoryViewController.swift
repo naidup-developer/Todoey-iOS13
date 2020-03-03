@@ -9,8 +9,9 @@
 import UIKit
 import RealmSwift
 import SwipeCellKit
+import ChameleonFramework
 
-class CategoryViewController : UITableViewController {
+class CategoryViewController :  SwipeTableViewController {
     
     
     
@@ -23,8 +24,19 @@ class CategoryViewController : UITableViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         tableView.rowHeight = 80
+        tableView.separatorStyle = .none
         loadCategory()
     }
+    
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        guard let navBar = navigationController?.navigationBar else {
+            fatalError("Navigation Controller does not exist")
+        }
+        
+        navBar.backgroundColor = UIColor(hexString: "1D9BF6")
+    }
+    
     @IBAction func onClickAddButton(_ sender: UIBarButtonItem) {
         
         var textField = UITextField()
@@ -33,7 +45,7 @@ class CategoryViewController : UITableViewController {
             
             let newCategory = Category()
             newCategory.name = textField.text!
-            
+            newCategory.color = UIColor.randomFlat().hexValue()
             
             self.save(category: newCategory)
         }
@@ -53,12 +65,30 @@ class CategoryViewController : UITableViewController {
         return categories?.count ?? 1
     }
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        let category = categories?[indexPath.row]
-        let cell = tableView.dequeueReusableCell(withIdentifier: "TodoICategoryCell", for: indexPath) as! SwipeTableViewCell
-        cell.textLabel?.text = category?.name ?? "No Categeries added"
+        //let category = categories?[indexPath.row]
         
-        cell.delegate = self
+        let cell = super.tableView(tableView, cellForRowAt: indexPath)
         
+        
+        
+        if let category = categories?[indexPath.row]{
+            
+            
+            guard let categoryColor = UIColor(hexString : category.color )  else {
+                fatalError()
+            }
+            cell.backgroundColor = categoryColor
+            cell.textLabel?.textColor = ContrastColorOf(categoryColor, returnFlat: true)
+            cell.textLabel?.text = category.name
+            
+        }else{
+            cell.backgroundColor = UIColor(hexString : "007AFF")
+            
+            cell.textLabel?.text = "No Categeries added"
+        }
+        
+        
+            
         return cell
     }
     
@@ -116,28 +146,21 @@ class CategoryViewController : UITableViewController {
         
         tableView.reloadData()
     }
-}
-
-extension CategoryViewController : SwipeTableViewCellDelegate{
-    func tableView(_ tableView: UITableView, editActionsForRowAt indexPath: IndexPath, for orientation: SwipeActionsOrientation) -> [SwipeAction]? {
-        guard orientation == .right else {
-            return nil
-        }
-        
-        let deleteAction = SwipeAction(style: .destructive, title: "Delete") { (action, indecPath) in
-            
+    
+    //MARK: - Delete Data From Swipe
+    
+    override func updateModel(at indexPath: IndexPath) {
+        if let categoryForDeletion = categories?[indexPath.row]{
             do{
                 try self.realm.write{
-                    self.realm.delete(self.categories![indexPath.row])
+                    self.realm.delete(categoryForDeletion)
                 }
             }catch{
-                print("error Deleting")
+                print("error deleting while swipe : \(error)")
             }
-            
-            tableView.reloadData()
         }
-        
-        deleteAction.image = UIImage(named: "delete")
-        return [deleteAction]
     }
+    
+    
 }
+
